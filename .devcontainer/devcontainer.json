@@ -1,7 +1,41 @@
 {
-    "image": "mcr.microsoft.com/devcontainers/miniconda:latest",
-    "features": {
-        "ghcr.io/devcontainers/features/common-utils": "latest"
-    },
-    "postCreateCommand": "sudo apt update && sudo apt install -y openmpi-bin libopenmpi-dev && pip install -r pa2/requirements.txt && pip install -r pa3/requirements.txt && pip install torch torchvision scikit-learn ipykernel"
+  "name": "cse234-w25-pa",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "vscode",
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb",
+    "storage": "32gb"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": false,
+      "upgradePackages": true
+    }
+  },
+  "containerEnv": {
+    "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "updateContentCommand": "bash .devcontainer/scripts/setup-python.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.cwd": "${containerWorkspaceFolder}",
+        "jupyter.askForKernelRestart": false
+      }
+    }
+  }
 }
