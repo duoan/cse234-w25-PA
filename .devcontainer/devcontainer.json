@@ -10,13 +10,6 @@
     "memory": "8gb",
     "storage": "32gb"
   },
-  "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "configureZshAsDefaultShell": true,
-      "installOhMyZsh": false,
-      "upgradePackages": true
-    }
-  },
   "containerEnv": {
     "PIP_DISABLE_PIP_VERSION_CHECK": "1",
     "PYTHONDONTWRITEBYTECODE": "1",
