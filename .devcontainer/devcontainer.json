@@ -1,0 +1,7 @@
+{
+    "image": "mcr.microsoft.com/devcontainers/miniconda:latest",
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils": "latest"
+    },
+    "postCreateCommand": "apt update && apt install -y openmpi-bin libopenmpi-dev && pip install -r pa2/requirements.txt && pip install -r pa3/requirements.txt && pip install torch torchvision scikit-learn ipykernel"
+}
