@@ -26,7 +26,7 @@
       }
     }
   },
-  "postCreateCommand": "conda install -y pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia && pip install -r /workspaces/cse234-w25-PA/requirements.txt 2>/dev/null || true",
+  "postCreateCommand": "pip install -r /workspaces/cse234-w25-PA/requirements.txt 2>/dev/null || true",
   "remoteUser": "root",
   "mounts": [
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/root/.ssh,readonly"
