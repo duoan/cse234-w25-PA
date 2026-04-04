@@ -1,9 +1,10 @@
 {
   "name": "PyTorch Development",
-  "image": "mcr.microsoft.com/devcontainers/miniconda:0-3.11",
+  "image": "mcr.microsoft.com/devcontainers/miniconda:latest",
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/raucha/devcontainer-features/pytorch:1": {},
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
   "customizations": {
