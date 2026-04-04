@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  pytorch-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pytorch-dev:latest
+    container_name: cse234-pytorch-dev
+    volumes:
+      - ..:/workspaces
+      - ~/.ssh:/root/.ssh:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+    shm_size: '2gb'
+    command: /bin/bash
