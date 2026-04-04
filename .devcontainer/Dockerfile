@@ -7,6 +7,7 @@ RUN if [ -d /etc/apt/sources.list.d ]; then \
     fi \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
+        build-essential \
         libopenmpi-dev \
         openmpi-bin \
     && rm -rf /var/lib/apt/lists/*
