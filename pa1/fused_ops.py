@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 import torch
-from auto_diff import *
+from auto_diff import Node, Op
 
 class MatMulLayerNormOp(Op):
     """Fused matrix multiplication and layer normalization operation."""
