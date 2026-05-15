@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 .DS_Store
 handin.tar
+pa1/data/
+.idea/

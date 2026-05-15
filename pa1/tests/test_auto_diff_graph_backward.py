@@ -1,11 +1,8 @@
-import sys
-from pathlib import Path
 from typing import Dict, List
 
 import torch
 
-sys.path.append(str(Path(__file__).parent.parent))
-import auto_diff as ad
+import pa1.auto_diff as ad
 
 
 def check_evaluator_output(

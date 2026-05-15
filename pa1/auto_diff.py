@@ -29,11 +29,15 @@ class Node:
     name: str
 
     def __init__(
-        self, inputs: List["Node"], op: "Op", attrs: Dict[str, Any] = {}, name: str = ""
+        self,
+        inputs: List["Node"],
+        op: "Op",
+        attrs: Dict[str, Any] | None = None,
+        name: str = "",
     ) -> None:
         self.inputs = inputs
         self.op = op
-        self.attrs = attrs
+        self.attrs = attrs if attrs is not None else {}
         self.name = name
 
     def __add__(self, other):
@@ -89,7 +93,7 @@ class Variable(Node):
 class Op:
     """The class of operations performed on nodes."""
 
-    def __call__(self, *kwargs) -> Node:
+    def __call__(self, *args, **kwargs) -> Node:
         """Create a new node with this current op.
 
         Returns
@@ -351,14 +355,51 @@ class SumOp(Op):
         return input_values[0].sum(dim=node.dim, keepdim=node.keepdim)
 
     def gradient(self, node: Node, output_grad: Node) -> List[Node]:
+        # d/dx_i sum(x) = 1, so we just broadcast the upstream gradient back
+        # to the input shape. ``unsqueeze_expand_as`` handles re-inserting any
+        # reduced dimensions when keepdim was False.
+        return [
+            unsqueeze_expand_as(
+                output_grad,
+                node.inputs[0],
+                dim=node.attrs["dim"],
+                keepdim=node.attrs["keepdim"],
+            )
+        ]
+
+
+class UnsqueezeExpandAsOp(Op):
+    """Re-insert reduced dims (if any) and broadcast to ref's shape.
+
+    Used by reductions like Sum/Mean to lift a reduced gradient back to the
+    original input shape regardless of dimensionality.
+    """
+
+    def __call__(self, x: Node, ref: Node, dim, keepdim: bool) -> Node:
+        return Node(
+            inputs=[x, ref],
+            op=self,
+            attrs={"dim": dim, "keepdim": keepdim},
+            name=f"UnsqueezeExpandAs({x.name} -> {ref.name})",
+        )
+
+    def compute(self, node: Node, input_values: List[torch.Tensor]) -> torch.Tensor:
+        x, ref = input_values
         dim = node.attrs["dim"]
         keepdim = node.attrs["keepdim"]
+        if isinstance(dim, int):
+            dim = (dim,)
+        if not keepdim:
+            ndim = ref.dim()
+            normalized = sorted(d if d >= 0 else d + ndim for d in dim)
+            for d in normalized:
+                x = x.unsqueeze(d)
+        return x.expand_as(ref)
 
-        if keepdim:
-            return [output_grad]
-        else:
-            reshape_grad = expand_as_3d(output_grad, node.inputs[0])
-            return [reshape_grad]
+    def gradient(self, node: Node, output_grad: Node) -> List[Node]:
+        raise NotImplementedError(
+            "Gradient of UnsqueezeExpandAsOp is not implemented."
+        )
 
 
 class ExpandAsOp(Op):
@@ -383,7 +424,7 @@ class ExpandAsOp(Op):
 
     def gradient(self, node: Node, output_grad: Node) -> List[Node]:
         """Given the gradient of the broadcast node, compute partial adjoint to input."""
-        return [sum_op(output_grad, dim=0), zeros_like(output_grad)]
+        return [sum_op(output_grad, dim=(0,)), zeros_like(output_grad)]
 
 
 class ExpandAsOp3d(Op):
@@ -404,7 +445,6 @@ class ExpandAsOp3d(Op):
         """Return the broadcasted tensor."""
         assert len(input_values) == 2
         input_tensor, target_tensor = input_values
-        print("expand_op", input_tensor.shape, target_tensor.shape)
         return input_tensor.unsqueeze(1).expand_as(target_tensor)
 
     def gradient(self, node: Node, output_grad: Node) -> List[Node]:
@@ -474,12 +514,12 @@ class BroadcastOp(Op):
 
         grad = output_grad
         if dims_to_sum:
-            grad = sum_op(grad, dim=dims_to_sum, keepdim=True)
+            grad = sum_op(grad, dim=tuple(dims_to_sum), keepdim=True)
 
         if len(output_shape) > len(input_shape):
             grad = sum_op(
                 grad,
-                dim=list(range(len(output_shape) - len(input_shape))),
+                dim=tuple(range(len(output_shape) - len(input_shape))),
                 keepdim=False,
             )
 
@@ -771,34 +811,55 @@ class MeanOp(Op):
 
     def compute(self, node: Node, input_values: List[torch.Tensor]) -> torch.Tensor:
         assert len(input_values) == 1
-        """TODO: your code here"""
-        node.attrs["input_shape"] = tuple(input_values[0].shape)
         return input_values[0].mean(
             dim=node.attrs["dim"],
             keepdim=node.attrs["keepdim"],
         )
 
     def gradient(self, node: Node, output_grad: Node) -> List[Node]:
-        """TODO: your code here"""
-        dim = node.attrs["dim"]
-        keepdim = node.attrs["keepdim"]
-        input_shape = node.attrs["input_shape"]
+        # d/dx_i mean(x) = 1/N over the reduced dimensions. We lift the upstream
+        # gradient back to the input shape, then divide by N at runtime.
+        grad = unsqueeze_expand_as(
+            output_grad,
+            node.inputs[0],
+            dim=node.attrs["dim"],
+            keepdim=node.attrs["keepdim"],
+        )
+        return [mean_scale(grad, node.inputs[0], dim=node.attrs["dim"])]
 
+
+class MeanScaleOp(Op):
+    """Helper op: divide ``grad`` by the product of sizes along ``dim`` of ``ref``.
+
+    Used by :class:`MeanOp` so that gradients do not need to know the input
+    shape at graph-construction time.
+    """
+
+    def __call__(self, grad: Node, ref: Node, dim) -> Node:
+        return Node(
+            inputs=[grad, ref],
+            op=self,
+            attrs={"dim": dim},
+            name=f"MeanScale({grad.name})",
+        )
+
+    def compute(self, node: Node, input_values: List[torch.Tensor]) -> torch.Tensor:
+        grad, ref = input_values
+        dim = node.attrs["dim"]
         if isinstance(dim, int):
             dim = (dim,)
-        ndim = len(input_shape)
-        dim = tuple(d if d >= 0 else d + ndim for d in dim)
-
         n = 1
         for d in dim:
-            n *= input_shape
+            n *= ref.shape[d]
+        return grad / n
 
-        if keepdim:
-            grad = output_grad
-        else:
-            grad = expand_as_3d(output_grad, node.inputs[0])
+    def gradient(self, node: Node, output_grad: Node) -> List[Node]:
+        # Higher-order gradients are not exercised in this assignment.
+        raise NotImplementedError("Gradient of MeanScaleOp is not implemented.")
 
-        return [div_by_const(grad, n)]
+
+def _mean_scale(grad: Node, ref: Node, dim) -> Node:
+    return mean_scale(grad, ref, dim)
 
 
 # Create global instances of ops.
@@ -818,7 +879,9 @@ layernorm = LayerNormOp()
 relu = ReLUOp()
 transpose = TransposeOp()
 mean = MeanOp()
+mean_scale = MeanScaleOp()
 sum_op = SumOp()
+unsqueeze_expand_as = UnsqueezeExpandAsOp()
 sqrt = SqrtOp()
 power = PowerOp()
 greater = GreaterThanOp()

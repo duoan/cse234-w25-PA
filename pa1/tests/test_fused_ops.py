@@ -4,9 +4,8 @@ from typing import Dict, List
 
 import torch
 
-sys.path.append(str(Path(__file__).parent.parent))
-import auto_diff as ad
-from fused_ops import matmul_layernorm, matmul_softmax
+import pa1.auto_diff as ad
+from pa1.fused_ops import matmul_layernorm, matmul_softmax
 
 
 def check_compute_output(
